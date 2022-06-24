@@ -581,7 +581,8 @@ namespace miniply {
   // PLYReader methods
   //
 
-  PLYReader::PLYReader(const char* filename)
+  PLYReader::PLYReader(const char* filename) :
+      m_stream(m_file)
   {
     m_buf = new char[kPLYReadBufferSize + 1];
     m_buf[kPLYReadBufferSize] = '\0';
@@ -593,25 +594,50 @@ namespace miniply {
     m_pos = m_bufEnd;
     m_end = m_bufEnd;
 
-    if (file_open(&m_f, filename, "rb") != 0) {
-      m_f = nullptr;
+    m_file.open(filename, std::ios::binary);
+
+    if (!m_file.is_open()) {
       m_valid = false;
       return;
     }
+
+    init();
+  }
+
+  PLYReader::PLYReader(std::istream& stream) :
+      m_stream(stream)
+  {
+    init();
+  }
+
+
+  PLYReader::~PLYReader()
+  {
+    if (m_file.is_open()) {
+      m_file.close();
+    }
+
+    delete[] m_buf;
+    delete[] m_tmpBuf;
+  }
+
+
+  void PLYReader::init()
+  {
     m_valid = true;
 
     refill_buffer();
 
     m_valid = keyword("ply") && next_line() &&
-              keyword("format") && advance() &&
-              typed_which(kPLYFileTypes, &m_fileType) && advance() &&
-              int_literal(&m_majorVersion) && advance() &&
-              match(".") && advance() &&
-              int_literal(&m_minorVersion) && next_line() &&
-              parse_elements() &&
-              keyword("end_header") && advance() && match("\n") && accept();
+        keyword("format") && advance() &&
+        typed_which(kPLYFileTypes, &m_fileType) && advance() &&
+        int_literal(&m_majorVersion) && advance() &&
+        match(".") && advance() &&
+        int_literal(&m_minorVersion) && next_line() &&
+        parse_elements() &&
+        keyword("end_header") && advance() && match("\n") && accept();
     if (!m_valid) {
-      return;
+        return;
     }
     m_inDataSection = true;
     if (m_fileType == PLYFileType::ASCII) {
@@ -622,17 +648,6 @@ namespace miniply {
       elem.calculate_offsets();
     }
   }
-
-
-  PLYReader::~PLYReader()
-  {
-    if (m_f != nullptr) {
-      fclose(m_f);
-    }
-    delete[] m_buf;
-    delete[] m_tmpBuf;
-  }
-
 
   bool PLYReader::valid() const
   {
@@ -709,7 +724,7 @@ namespace miniply {
       int64_t elementEnd = elementStart + elementSize;
       if (elementEnd >= kPLYReadBufferSize) {
         m_bufOffset += elementEnd;
-        file_seek(m_f, m_bufOffset, SEEK_SET);
+        m_stream.seekg(m_bufOffset, std::ios::cur);
         m_bufEnd = m_buf + kPLYReadBufferSize;
         m_pos = m_bufEnd;
         m_end = m_bufEnd;
@@ -1337,7 +1352,7 @@ namespace miniply {
 
   bool PLYReader::refill_buffer()
   {
-    if (m_f == nullptr || m_atEOF) {
+    if (m_stream.eof() || m_atEOF) {
       // Nothing left to read.
       return false;
     }
@@ -1364,7 +1379,9 @@ namespace miniply {
     m_pos = m_buf;
 
     // Fill the remaining space in the buffer with data from the file.
-    size_t fetched = fread(m_buf + keep, sizeof(char), kPLYReadBufferSize - keep, m_f) + keep;
+    m_stream.read(m_buf + keep, kPLYReadBufferSize - keep);
+    size_t fetched = m_stream.gcount() + keep;
+
     m_atEOF = fetched < kPLYReadBufferSize;
     m_bufEnd = m_buf + fetched;
 

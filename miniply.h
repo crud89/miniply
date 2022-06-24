@@ -27,7 +27,8 @@ SOFTWARE.
 #include <cstdio>
 #include <string>
 #include <vector>
-
+#include <iostream>
+#include <fstream>
 
 /// miniply - A simple and fast parser for PLY files
 /// ================================================
@@ -144,8 +145,10 @@ namespace miniply {
   class PLYReader {
   public:
     PLYReader(const char* filename);
+    PLYReader(std::istream& stream);
     ~PLYReader();
 
+  public:
     bool valid() const;
     bool has_element() const;
     const PLYElement* element() const;
@@ -233,6 +236,7 @@ namespace miniply {
     bool find_indices(uint32_t propIdxs[1]) const;
 
   private:
+    void init();
     bool refill_buffer();
     bool rewind_to_safe_char();
     bool accept();
@@ -270,7 +274,8 @@ namespace miniply {
     bool ascii_value(PLYPropertyType propType, uint8_t value[8]);
 
   private:
-    FILE* m_f             = nullptr;
+    std::ifstream m_file;
+    std::istream& m_stream;
     char* m_buf           = nullptr;
     const char* m_bufEnd  = nullptr;
     const char* m_pos     = nullptr;
