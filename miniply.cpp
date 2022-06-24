@@ -584,16 +584,6 @@ namespace miniply {
   PLYReader::PLYReader(const char* filename) :
       m_stream(m_file)
   {
-    m_buf = new char[kPLYReadBufferSize + 1];
-    m_buf[kPLYReadBufferSize] = '\0';
-
-    m_tmpBuf = new char[kPLYTempBufferSize + 1];
-    m_tmpBuf[kPLYTempBufferSize] = '\0';
-
-    m_bufEnd = m_buf + kPLYReadBufferSize;
-    m_pos = m_bufEnd;
-    m_end = m_bufEnd;
-
     m_file.open(filename, std::ios::binary);
 
     if (!m_file.is_open()) {
@@ -624,6 +614,13 @@ namespace miniply {
 
   void PLYReader::init()
   {
+    m_buf = new char[kPLYReadBufferSize + 1];
+    m_buf[kPLYReadBufferSize] = '\0';
+    m_tmpBuf = new char[kPLYTempBufferSize + 1];
+    m_tmpBuf[kPLYTempBufferSize] = '\0';
+    m_bufEnd = m_buf + kPLYReadBufferSize;
+    m_pos = m_bufEnd;
+    m_end = m_bufEnd;
     m_valid = true;
 
     refill_buffer();
