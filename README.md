@@ -1,6 +1,8 @@
 miniply
 ===============================================================
 
+**NOTE:** This fork uses `std::istream` instead of opening a file directly in order to support streaming from different sources. However, this comes with a performance penalty (at least in my system). Loading the pbrt-v3 scenes takes roughly 20% longer than the original implementation. This is likely due to the implementation of the vcrt. I don't know if this behaves differently when compiled with other compilers or for other environments than MSVC/Windows. I will not open a PR, with this much of a performance hit. If you need streaming support, feel free to use this repository. If you are only loading individual files, just use the original implementation.
+
 <p align="center">
 <img src="https://github.com/vilya/miniply/blob/master/miniPLY3d_logo-cropped.png" width="744"> 
 </p>
