@@ -1229,7 +1229,7 @@ namespace miniply {
 
   bool PLYReader::extract_triangles(uint32_t propIdx, const float pos[], uint32_t numVerts, PLYPropertyType destType, void* dest) const
   {
-    return this->extract_triangles(propIdx, pos, 0, numVerts, destType, dest);
+    return this->extract_triangles(propIdx, pos, sizeof(float) * 3, numVerts, destType, dest);
   }
 
 
@@ -1991,7 +1991,7 @@ namespace miniply {
 
   uint32_t triangulate_polygon(uint32_t n, const float pos[], uint32_t numVerts, const int indices[], int dst[])
   {
-    return triangulate_polygon(n, pos, 0, numVerts, indices, dst);
+    return triangulate_polygon(n, pos, sizeof(float) * 3, numVerts, indices, dst);
   }
 
 
