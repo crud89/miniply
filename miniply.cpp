@@ -459,7 +459,7 @@ namespace miniply {
   static inline const Vec3* getVec3(const float* pos, const int stride, const int& index)
   {
     const size_t vtxSize = (sizeof(float) * 3) + stride;
-    return reinterpret_cast<const Vec3*>(pos + (index * vtxSize));
+    return reinterpret_cast<const Vec3*>(reinterpret_cast<uint8_t>(pos) + (index * vtxSize));
   }
 
 
