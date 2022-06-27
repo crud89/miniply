@@ -228,6 +228,7 @@ namespace miniply {
     uint32_t num_triangles(uint32_t propIdx) const;
     bool requires_triangulation(uint32_t propIdx) const;
     bool extract_triangles(uint32_t propIdx, const float pos[], uint32_t numVerts, PLYPropertyType destType, void* dest) const;
+    bool extract_triangles(uint32_t propIdx, const float* pos, const int stride, uint32_t numVerts, PLYPropertyType destType, void* dest) const;
 
     bool find_pos(uint32_t propIdxs[3]) const;
     bool find_normal(uint32_t propIdxs[3]) const;
@@ -313,5 +314,6 @@ namespace miniply {
   ///
   /// The return value is the number of triangles.
   uint32_t triangulate_polygon(uint32_t n, const float pos[], uint32_t numVerts, const int indices[], int dst[]);
+  uint32_t triangulate_polygon(uint32_t n, const float* pos, const int stride, uint32_t numVerts, const int indices[], int dst[]);
 
 } // namespace miniply

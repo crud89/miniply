@@ -456,6 +456,13 @@ namespace miniply {
   }
 
 
+  static inline const Vec3* getVec3(const float* pos, const int stride, const int& index)
+  {
+    const size_t vtxSize = (sizeof(float) * 3) + stride;
+    return reinterpret_cast<const Vec3*>(pos + (index * vtxSize));
+  }
+
+
   //
   // PLYElement methods
   //
@@ -1220,7 +1227,13 @@ namespace miniply {
   }
 
 
-  bool PLYReader::extract_triangles(uint32_t propIdx, const float pos[], uint32_t numVerts, PLYPropertyType destType, void *dest) const
+  bool PLYReader::extract_triangles(uint32_t propIdx, const float pos[], uint32_t numVerts, PLYPropertyType destType, void* dest) const
+  {
+    return this->extract_triangles(propIdx, pos, 0, numVerts, destType, dest);
+  }
+
+
+  bool PLYReader::extract_triangles(uint32_t propIdx, const float* pos, const int stride, uint32_t numVerts, PLYPropertyType destType, void* dest) const
   {
     if (!requires_triangulation(propIdx)) {
       return extract_list_property(propIdx, destType, dest);
@@ -1256,7 +1269,7 @@ namespace miniply {
         }
 
         triIndices.resize((counts[faceIdx] - 2) * 3);
-        triangulate_polygon(counts[faceIdx], pos, numVerts, faceIndices.data(), triIndices.data());
+        triangulate_polygon(counts[faceIdx], pos, stride, numVerts, faceIndices.data(), triIndices.data());
         for (int idx : triIndices) {
           copy_and_convert(to, destType, reinterpret_cast<const uint8_t*>(&idx), PLYPropertyType::Int);
           to += destValBytes;
@@ -1277,7 +1290,7 @@ namespace miniply {
           faceIndices.push_back(idx);
         }
 
-        uint32_t numTris = triangulate_polygon(counts[faceIdx], pos, numVerts, faceIndices.data(), reinterpret_cast<int*>(to));
+        uint32_t numTris = triangulate_polygon(counts[faceIdx], pos, stride, numVerts, faceIndices.data(), reinterpret_cast<int*>(to));
         to += numTris * 3 * destValBytes;
       }
     }
@@ -1287,7 +1300,7 @@ namespace miniply {
       const uint8_t* face = data;
       for (uint32_t faceIdx = 0; faceIdx < elem->count; faceIdx++) {
         triIndices.resize((counts[faceIdx] - 2) * 3);
-        triangulate_polygon(counts[faceIdx], pos, numVerts, reinterpret_cast<const int*>(face), triIndices.data());
+        triangulate_polygon(counts[faceIdx], pos, stride, numVerts, reinterpret_cast<const int*>(face), triIndices.data());
         for (int idx : triIndices) {
           copy_and_convert(to, destType, reinterpret_cast<const uint8_t*>(&idx), PLYPropertyType::Int);
           to += destValBytes;
@@ -1298,7 +1311,7 @@ namespace miniply {
     else {
       const uint8_t* face = data;
       for (uint32_t faceIdx = 0; faceIdx < elem->count; faceIdx++) {
-        uint32_t numTris = triangulate_polygon(counts[faceIdx], pos, numVerts, reinterpret_cast<const int*>(face), reinterpret_cast<int*>(to));
+        uint32_t numTris = triangulate_polygon(counts[faceIdx], pos, stride, numVerts, reinterpret_cast<const int*>(face), reinterpret_cast<int*>(to));
         face += counts[faceIdx] * srcValBytes;
         to += numTris * 3 * destValBytes;
       }
@@ -1978,6 +1991,12 @@ namespace miniply {
 
   uint32_t triangulate_polygon(uint32_t n, const float pos[], uint32_t numVerts, const int indices[], int dst[])
   {
+    return triangulate_polygon(n, pos, 0, numVerts, indices, dst);
+  }
+
+
+  uint32_t triangulate_polygon(uint32_t n, const float* pos, const int stride, uint32_t numVerts, const int indices[], int dst[])
+  {
     if (n < 3) {
       return 0;
     }
@@ -2006,18 +2025,16 @@ namespace miniply {
       }
     }
 
-    const Vec3* vpos = reinterpret_cast<const Vec3*>(pos);
-
     // Calculate the geometric normal of the face
-    Vec3 origin = vpos[indices[0]];
-    Vec3 faceU = normalize(vpos[indices[1]] - origin);
-    Vec3 faceNormal = normalize(cross(faceU, normalize(vpos[indices[n - 1]] - origin)));
+    Vec3 origin = *getVec3(pos, stride, indices[0]);
+    Vec3 faceU = normalize(*getVec3(pos, stride, indices[1]) - origin);
+    Vec3 faceNormal = normalize(cross(faceU, normalize(*getVec3(pos, stride, indices[n - 1]) - origin)));
     Vec3 faceV = normalize(cross(faceNormal, faceU));
 
     // Project the faces points onto the plane perpendicular to the normal.
     std::vector<Vec2> points2D(n, Vec2{0.0f, 0.0f});
     for (uint32_t i = 1; i < n; i++) {
-      Vec3 p = vpos[indices[i]] - origin;
+      Vec3 p = *getVec3(pos, stride, indices[i]) - origin;
       points2D[i] = Vec2{dot(p, faceU), dot(p, faceV)};
     }
 
