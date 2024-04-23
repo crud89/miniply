@@ -22,6 +22,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+#ifndef MINIPLY_H
+#define MINIPLY_H
+
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -317,3 +320,5 @@ namespace miniply {
   uint32_t triangulate_polygon(uint32_t n, const float* pos, const int stride, uint32_t numVerts, const int indices[], int dst[]);
 
 } // namespace miniply
+
+#endif // MINIPLY_H
