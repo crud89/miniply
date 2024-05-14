@@ -30,6 +30,7 @@ SOFTWARE.
 #include <cstdio>
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <iostream>
 #include <fstream>
 
@@ -302,6 +303,53 @@ namespace miniply {
     char* m_tmpBuf = nullptr;
   };
 
+
+  class PLYWriter {
+  public:
+      PLYWriter(const char* filename, PLYFileType fileType = PLYFileType::ASCII, int verMajor = 1, int verMinor = 0);
+      PLYWriter(std::ostream& stream, PLYFileType fileType = PLYFileType::ASCII, int verMajor = 1, int verMinor = 0);
+      ~PLYWriter();
+
+  private:
+      void init();
+      PLYElement* get_element(const std::string& name);
+      inline std::string convert_property_to_ascii(const uint8_t* buffer, size_t offset, PLYPropertyType type) const;
+
+  public:
+      bool valid() const;
+
+      const PLYElement* get_element(const std::string& name) const;
+
+      void add_element(const std::string& name);
+      bool add_property(const std::string& element, const std::string& name, PLYPropertyType type);
+      bool add_list_property(const std::string& element, const std::string& name, PLYPropertyType countType, PLYPropertyType type);
+      
+      bool add_position_properties(const std::string& element = kPLYVertexElement, PLYPropertyType type = PLYPropertyType::Float);
+      bool add_normal_properties(const std::string& element = kPLYVertexElement, PLYPropertyType type = PLYPropertyType::Float);
+      bool add_texcoord_properties(const std::string& element = kPLYVertexElement, PLYPropertyType type = PLYPropertyType::Float);
+      bool add_color_properties(const std::string& element = kPLYVertexElement, PLYPropertyType type = PLYPropertyType::Float);
+      bool add_vertex_index_property(const std::string& element = kPLYFaceElement, PLYPropertyType countType = PLYPropertyType::UChar, PLYPropertyType type = PLYPropertyType::Int);
+
+      uint32_t get_property_index(const std::string& element, const std::string& property) const;
+
+      bool reserve_items(const std::string& element, uint32_t items);
+      bool map_items(const std::string& element, const void* data, uint32_t numItems, uint32_t stride, const uint32_t propIdxs[], uint32_t numProps, uint32_t firstItem = 0);
+      bool map_list_items(const std::string& element, const uint32_t* counts, const void* data, uint32_t numItems, uint32_t propIdx, uint32_t firstItem = 0);
+
+      void write() const;
+
+  private:
+      std::ofstream m_file;
+      std::ostream& m_stream;
+      PLYFileType m_fileType;
+      int m_versionMajor;
+      int m_versionMinor;
+
+      std::unordered_map<std::string, PLYElement> m_elements;
+      std::unordered_map<std::string, std::vector<uint8_t>> m_elementData;
+
+      bool m_valid = false;
+  };
 
   /// Given a polygon with `n` vertices, where `n` > 3, triangulate it and
   /// store the indices for the resulting triangles in `dst`. The `pos`

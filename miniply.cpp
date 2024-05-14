@@ -24,6 +24,7 @@ SOFTWARE.
 
 #include "miniply.h"
 
+#include <array>
 #include <cassert>
 #include <cctype>
 #include <cmath>
@@ -86,6 +87,21 @@ namespace miniply {
     { nullptr,  PLYPropertyType::None   }
   };
 
+  static const char* get_property_type_name(PLYPropertyType type)
+  {
+      switch (type)
+      {
+      case PLYPropertyType::Char: return "char";
+      case PLYPropertyType::UChar: return "uchar";
+      case PLYPropertyType::Short: return "short";
+      case PLYPropertyType::UShort: return "ushort";
+      case PLYPropertyType::Int: return "int";
+      case PLYPropertyType::UInt: return "uint";
+      case PLYPropertyType::Float: return "float";
+      case PLYPropertyType::Double: return "double";
+      default: return ""; // Invalid type
+      }
+  }
 
   //
   // Constants
@@ -2083,6 +2099,470 @@ namespace miniply {
     dst[2] = indices[prev[first]];
 
     return n - 2;
+  }
+
+
+
+  //
+  // PLYWriter methods
+  //
+
+  PLYWriter::PLYWriter(const char* filename, PLYFileType fileType, int verMajor, int verMinor) :
+      m_stream(m_file), m_fileType(fileType), m_versionMajor(verMajor), m_versionMinor(verMinor)
+  {
+      m_file.open(filename, std::ios::binary | std::ios::trunc | std::ios::out);
+
+      if (!m_file.is_open()) {
+          m_valid = false;
+          return;
+      }
+
+      init();
+  }
+
+  PLYWriter::PLYWriter(std::ostream& stream, PLYFileType fileType, int verMajor, int verMinor) :
+      m_stream(stream), m_fileType(fileType), m_versionMajor(verMajor), m_versionMinor(verMinor)
+  {
+      init();
+  }
+
+  PLYWriter::~PLYWriter() 
+  {
+      if (m_file.is_open())
+          m_file.close();
+  }
+
+  void PLYWriter::init() 
+  {
+      // Add vertex and face elements.
+      this->add_element(kPLYVertexElement);
+      this->add_element(kPLYFaceElement);
+  }
+
+  bool PLYWriter::valid() const
+  {
+      return m_valid;
+  }
+
+  PLYElement* PLYWriter::get_element(const std::string& name)
+  {
+      return m_elements.find(name) == m_elements.end() ? nullptr : std::addressof(m_elements.at(name));
+  }
+
+  const PLYElement* PLYWriter::get_element(const std::string& name) const
+  {
+      return m_elements.find(name) == m_elements.end() ? nullptr : std::addressof(m_elements.at(name));
+  }
+
+  std::string PLYWriter::convert_property_to_ascii(const uint8_t* buffer, size_t offset, PLYPropertyType type) const
+  {
+      switch (type)
+      {
+      case PLYPropertyType::Char:
+      {
+          int8_t val = *reinterpret_cast<const int8_t*>(buffer + offset);
+          return std::to_string(static_cast<int>(val));
+      }
+      case PLYPropertyType::UChar:
+      {
+          uint8_t val = *reinterpret_cast<const uint8_t*>(buffer + offset);
+          return std::to_string(static_cast<unsigned int>(val));
+      }
+      case PLYPropertyType::Short:
+      {
+          int16_t val = *reinterpret_cast<const int16_t*>(buffer + offset);
+          return std::to_string(static_cast<int>(val));
+      }
+      case PLYPropertyType::UShort:
+      {
+          uint16_t val = *reinterpret_cast<const uint16_t*>(buffer + offset);
+          return std::to_string(static_cast<unsigned int>(val));
+      }
+      case PLYPropertyType::Int:
+      {
+          int32_t val = *reinterpret_cast<const int32_t*>(buffer + offset);
+          return std::to_string(val);
+      }
+      case PLYPropertyType::UInt:
+      {
+          uint32_t val = *reinterpret_cast<const uint32_t*>(buffer + offset);
+          return std::to_string(val);
+      }
+      case PLYPropertyType::Float:
+      {
+          float val = *reinterpret_cast<const float*>(buffer + offset);
+          return std::to_string(val);
+      }
+      case PLYPropertyType::Double:
+      {
+          double val = *reinterpret_cast<const double*>(buffer + offset);
+          return std::to_string(val);
+      }
+      default:
+      {
+          // NOTE: This is actually an error, but we should have handled everything above, except property type `None`, so we ignore it for now.
+          return;
+      }
+      }
+  }
+
+  void PLYWriter::add_element(const std::string& name)
+  {
+      if (m_elements.find(name) == m_elements.end())
+          m_elements.insert(std::make_pair(name, PLYElement { name }));
+  }
+
+  bool PLYWriter::add_property(const std::string& elementName, const std::string& name, PLYPropertyType type)
+  {
+      auto element = this->get_element(elementName);
+
+      if (element == nullptr)
+          return false;
+
+      // Cannot add properties to elements that have items.
+      if (element->count > 0)
+          return false;
+
+      element->properties.push_back({ name, type });
+      element->calculate_offsets();
+
+      return true;
+  }
+
+  bool PLYWriter::add_list_property(const std::string& elementName, const std::string& name, PLYPropertyType countType, PLYPropertyType type)
+  {
+      auto element = this->get_element(elementName);
+
+      if (element == nullptr)
+          return false;
+
+      // Cannot add properties to elements that have items.
+      if (element->count > 0)
+          return false;
+
+      element->properties.push_back({ name, type, countType });
+      element->calculate_offsets();
+
+      return true;
+  }
+
+  bool PLYWriter::add_position_properties(const std::string& element, PLYPropertyType type)
+  {
+      return this->add_property(element, "x", type) && this->add_property(element, "y", type) && this->add_property(element, "z", type);
+  }
+
+  bool PLYWriter::add_normal_properties(const std::string& element, PLYPropertyType type)
+  {
+      return this->add_property(element, "nx", type) && this->add_property(element, "ny", type) && this->add_property(element, "nz", type);
+  }
+
+  bool PLYWriter::add_texcoord_properties(const std::string& element, PLYPropertyType type)
+  {
+      return this->add_property(element, "s", type) && this->add_property(element, "t", type);
+  }
+
+  bool PLYWriter::add_color_properties(const std::string& element, PLYPropertyType type)
+  {
+      return this->add_property(element, "r", type) && this->add_property(element, "g", type) && this->add_property(element, "b", type);
+  }
+
+  bool PLYWriter::add_vertex_index_property(const std::string& element, PLYPropertyType countType, PLYPropertyType type)
+  {
+      return this->add_list_property(element, "vertex_index", countType, type);
+  }
+
+  uint32_t PLYWriter::get_property_index(const std::string& elementName, const std::string& property) const
+  {
+      auto element = this->get_element(elementName);
+
+      if (element == nullptr)
+          return kInvalidIndex;
+
+      return element->find_property(property.c_str());
+  }
+
+  bool PLYWriter::reserve_items(const std::string& elementName, uint32_t items)
+  {
+      auto element = this->get_element(elementName);
+
+      if (element == nullptr)
+          return false;
+
+      size_t itemSize = 0;
+
+      for (auto& prop : element->properties)
+      {
+          if (prop.countType != PLYPropertyType::None)
+          {
+              // Add list elements.
+              prop.rowCount.resize(items);
+          }
+          else
+          {
+              // Count towards per-element space requirement.
+              itemSize += kPLYPropertySize[uint32_t(prop.type)];
+          }
+      }
+
+      auto& elementData = m_elementData[elementName];
+      elementData.resize(elementData.size() + (itemSize * items));
+      element->count += items;
+  }
+
+  bool PLYWriter::map_items(const std::string& elementName, const void* data, uint32_t numItems, uint32_t stride, const uint32_t propIdxs[], uint32_t numProps, uint32_t firstItem)
+  {
+      auto element = this->get_element(elementName);
+
+      if (element == nullptr)
+          return false;
+
+      // Check if any elements are list elements. List elements must be mapped differently.
+      for (int p = 0; p < numProps; ++p)
+          if (element->properties[propIdxs[p]].countType != PLYPropertyType::None)
+              return false;
+
+      void* elementData = m_elementData[elementName].data();
+
+      for (auto item = firstItem, i = 0u; i < numItems; ++i, ++item)
+      {
+          for (uint32_t p = 0u, propOffset = 0u; p < numProps; ++p)
+          {
+              // Get the property.
+              auto& prop = element->properties[propIdxs[p]];
+
+              // Copy the source data into the element buffer.
+              auto elementOffset = ((size_t)item * (size_t)element->rowStride) + (size_t)prop.offset;
+              auto dataOffset = ((size_t)i * (size_t)stride) + (size_t)propOffset;
+              propOffset += kPLYPropertySize[uint32_t(prop.type)];
+              std::memcpy((uint8_t*)elementData + elementOffset, (uint8_t*)data + dataOffset, kPLYPropertySize[uint32_t(prop.type)]);
+          }
+      }
+  }
+  
+  bool PLYWriter::map_list_items(const std::string& elementName, const uint32_t* counts, const void* data, uint32_t numItems, uint32_t propIdx, uint32_t firstItem)
+  {
+      auto element = this->get_element(elementName);
+
+      if (element == nullptr)
+          return false;
+
+      // Check if the item is a list item.
+      auto& prop = element->properties[propIdx];
+      
+      if (prop.countType == PLYPropertyType::None)
+          return false;
+
+      // Accumulate the counts until the first item.
+      size_t elementOffset = 0u;
+
+      for (uint32_t i = 0; i < firstItem; i++)
+          elementOffset += prop.rowCount[i] * kPLYPropertySize[uint32_t(prop.type)];
+
+      // Copy the counts and the actual data.
+      std::memcpy((uint32_t*)prop.rowCount.data() + firstItem, counts, numItems * sizeof(uint32_t));
+      size_t dataOffset = 0u;
+
+      for (auto item = firstItem, i = 0u; i < numItems; ++i, ++item)
+      {
+          auto count = counts[i];
+          auto elementSize = count * kPLYPropertySize[uint32_t(prop.type)] * sizeof(uint8_t);
+          std::memcpy(prop.listData.data() + elementOffset, (uint8_t*)data + dataOffset, elementSize);
+          elementOffset += elementSize;
+          dataOffset += elementSize;
+      }
+
+      // Mark the element as non-fixed.
+      element->fixedSize = false;
+  }
+
+  void PLYWriter::write() const
+  {
+      // Write the header.
+      m_stream << "ply\nformat " << kPLYFileTypes[static_cast<uint32_t>(m_fileType)] << " " << std::to_string(m_versionMajor) << "." << std::to_string(m_versionMinor) << "\n";
+
+      // Write individual elements.
+      for (auto& element : m_elements)
+      {
+          m_stream << "element " << element.second.name << " " << std::to_string(element.second.count) << "\n"; // TODO: Insert count here!
+
+          // Write out the properties.
+          for (auto& property : element.second.properties)
+          {
+              // Lists need different treatment to scalars.
+              if (property.countType != PLYPropertyType::None)
+                  m_stream << "property list " << get_property_type_name(property.countType) << " " << get_property_type_name(property.type) << " " << property.name << "\n";
+              else
+                  m_stream << "property " << get_property_type_name(property.type) << " " << property.name << "\n";
+          }
+      }
+
+      // End the header.
+      m_stream << "end_header\n";
+
+      // The rest of the file depends on the file type.
+      switch (m_fileType)
+      {
+      case PLYFileType::ASCII:
+      {
+          // Write each element.
+          for (auto& element : m_elements)
+          {
+              // Get the element data.
+              auto& elementData = m_elementData.at(element.first);
+
+              // Write each element individually.
+              std::unordered_map<std::string, size_t> listDataOffsets;
+
+              for (size_t i = 0, dataOffset = 0; i < element.second.count; ++i)
+              {
+                  for (auto& property : element.second.properties)
+                  {
+                      if (property.countType == PLYPropertyType::None)
+                      {
+                          // Convert scalar property to ASCII, depending on type.
+                          auto str = convert_property_to_ascii(elementData.data(), dataOffset, property.type);
+                          m_stream << str << " "; // NOTE: This will append an unnecessary white space at the end of each property, but for the sake of parsing performance we will ignore it. 
+                          dataOffset += kPLYPropertySize[uint32_t(property.type)];
+                      }
+                      else
+                      {
+                          // Add a list data offset mapping, if it does not yet exist.
+                          if (listDataOffsets.find(property.name) == listDataOffsets.end())
+                              listDataOffsets.insert(std::make_pair(property.name, 0));
+
+                          auto& listDataOffset = listDataOffsets[property.name];
+
+                          // Write out list elements item-wise. Start with the item count.
+                          m_stream << convert_property_to_ascii(reinterpret_cast<const uint8_t*>(property.rowCount.data()), sizeof(uint32_t) * i, PLYPropertyType::UInt) << " ";
+                          
+                          for (uint32_t e = 0; e < property.rowCount[i]; ++e)
+                          {
+                              m_stream << convert_property_to_ascii(property.listData.data(), listDataOffset, property.type);
+                              listDataOffset += kPLYPropertySize[uint32_t(property.type)];
+                          }
+                      }
+                  }
+
+                  // Append newline.
+                  m_stream << '\n';
+              }
+          }
+
+          break;
+      }
+      case PLYFileType::Binary:
+      {
+          // Write each element.
+          for (auto& element : m_elements)
+          {
+              // Get the element data.
+              auto& elementData = m_elementData.at(element.first);
+
+              // If the element is fixed, we can simply dump it without further conversion. This is the fast path, so storing in LE Binary with little to none list properties is preferred.
+              if (element.second.fixedSize)
+                  m_stream.write(reinterpret_cast<const char*>(elementData.data()), elementData.size());
+              else
+              {
+                  // Write each item individually.
+                  std::array<uint8_t, 8u> buffer;
+                  std::unordered_map<std::string, size_t> listDataOffsets;
+
+                  for (size_t i = 0, dataOffset = 0; i < element.second.count; ++i)
+                  {
+                      for (auto& property : element.second.properties)
+                      {
+                          if (property.countType == PLYPropertyType::None)
+                          {
+                              // If the property is not a list property, just write out it's data.
+                              m_stream.write(reinterpret_cast<const char*>(elementData.data() + dataOffset), kPLYPropertySize[uint32_t(property.type)]);
+                              dataOffset += kPLYPropertySize[uint32_t(property.type)];
+                          }
+                          else
+                          {
+                              // Write the counter.
+                              copy_and_convert(buffer.data(), property.countType, reinterpret_cast<const uint8_t*>(std::addressof(property.rowCount[i])), PLYPropertyType::UInt);
+                              m_stream.write(reinterpret_cast<const char*>(buffer.data()), kPLYPropertySize[uint32_t(property.countType)]);
+
+                              // Add a list data offset mapping, if it does not yet exist.
+                              if (listDataOffsets.find(property.name) == listDataOffsets.end())
+                                  listDataOffsets.insert(std::make_pair(property.name, 0));
+
+                              auto& listDataOffset = listDataOffsets[property.name];
+
+                              // Write the list elements.
+                              auto listElementSize = property.rowCount[i] * kPLYPropertySize[uint32_t(property.type)];
+                              m_stream.write(reinterpret_cast<const char*>(property.listData.data() + listDataOffset), listElementSize);
+                              listDataOffset += listElementSize;
+                          }
+                      }
+                  }
+              }
+          }
+
+          break;
+      }
+      case PLYFileType::BinaryBigEndian:
+      {
+          // Write each element.
+          for (auto& element : m_elements)
+          {
+              // Get the element data.
+              auto& elementData = m_elementData.at(element.first);
+
+              // As we need to swap endian-ness on a per-property level, we can't just dump the element data in one go, unfortunately.
+              std::array<uint8_t, 8u> buffer;
+              std::unordered_map<std::string, size_t> listDataOffsets;
+              std::vector<uint8_t> listDataBuffer;
+              listDataBuffer.resize(128);
+
+              for (size_t i = 0, dataOffset = 0; i < element.second.count; ++i)
+              {
+                  for (auto& property : element.second.properties)
+                  {
+                      if (property.countType == PLYPropertyType::None)
+                      {
+                          // Write out scalar properties straight away.
+                          std::memcpy(buffer.data(), elementData.data() + dataOffset, kPLYPropertySize[uint32_t(property.type)]);
+                          endian_swap(buffer.data(), property.type);
+                          m_stream.write(reinterpret_cast<const char*>(buffer.data()), kPLYPropertySize[uint32_t(property.type)]);
+                          dataOffset += kPLYPropertySize[uint32_t(property.type)];
+                      }
+                      else
+                      {
+                          // Add a list data offset mapping, if it does not yet exist.
+                          if (listDataOffsets.find(property.name) == listDataOffsets.end())
+                              listDataOffsets.insert(std::make_pair(property.name, 0));
+
+                          auto& listDataOffset = listDataOffsets[property.name];
+
+                          // Write out list elements item-wise. Start with the item count.
+                          copy_and_convert(buffer.data(), property.countType, reinterpret_cast<const uint8_t*>(std::addressof(property.rowCount[i])), PLYPropertyType::UInt);
+                          endian_swap(buffer.data(), property.countType);
+                          m_stream.write(reinterpret_cast<const char*>(buffer.data()), kPLYPropertySize[uint32_t(property.countType)]);
+                          
+                          // For the elements, first ensure that there's enough memory in the buffer.
+                          auto listElementSize = property.rowCount[i] * kPLYPropertySize[uint32_t(property.type)];
+
+                          if (listElementSize > listDataBuffer.size())
+                              listDataBuffer.resize(listElementSize);
+
+                          // Copy the elements into the buffer and swap their endian-ness.
+                          std::memcpy(listDataBuffer.data(), property.listData.data() + listDataOffset, listElementSize);
+                          endian_swap_array(listDataBuffer.data(), property.type, property.rowCount[i]);
+
+                          // Write the list elements.
+                          m_stream.write(reinterpret_cast<const char*>(listDataBuffer.data()), listElementSize);
+                          listDataOffset += listElementSize;
+                      }
+                  }
+              }
+          }
+
+          break;
+      }
+      }
+
+      return;
   }
 
 } // namespace miniply

@@ -1,7 +1,9 @@
 miniply
 ===============================================================
 
-**NOTE:** This fork uses `std::istream` instead of opening a file directly in order to support streaming from different sources. However, this comes with a performance penalty (at least in my system). Loading the pbrt-v3 scenes takes roughly 20% longer than the original implementation. This is likely due to the implementation of the vcrt. I don't know if this behaves differently when compiled with other compilers or for other environments than MSVC/Windows. I will not open a PR, with this much of a performance hit. If you need streaming support, feel free to use this repository. If you are only loading individual files, just use the original implementation.
+[miniply](https://github.com/vilya/miniply) fork with support for file writing and reading from streams.
+
+**NOTE:** This fork uses `std::istream` instead of opening a file directly in order to support streaming from different sources. However, this comes with a performance penalty (at least in my system). Loading the pbrt-v3 scenes takes roughly 20% longer than the original implementation. This is likely due to the implementation of the vcrt. I don't know if this behaves differently when compiled with other compilers or for other environments than MSVC/Windows. I will not open a PR, with this much of a performance hit. If you need streaming support or want to write files, feel free to use this repository. If you are only loading individual files, prefer the original implementation.
 
 <p align="center">
 <img src="https://github.com/vilya/miniply/blob/master/miniPLY3d_logo-cropped.png" width="744"> 
@@ -28,8 +30,6 @@ Features
 - Can **triangulate polygons** as they're loaded.
 - **Fast path** for models where you know every face has the same fixed number of vertices
 - **MIT license**
-
-Note that miniply does not support *writing* PLY files, only reading them.
 
 
 Getting started
@@ -302,10 +302,7 @@ libraries will?
 * [RPly](http://w3.impa.br/~diego/software/rply/)
 * [msh_ply](https://github.com/mhalber/msh/blob/master/msh_ply.h)
 
-In particular these all support writing as well as reading, whereas
-`miniply` only supports reading.
-
-
+* 
 Feedback, suggestions and bug reports
 -------------------------------------
 
