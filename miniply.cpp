@@ -475,7 +475,7 @@ namespace miniply {
   static inline const Vec3* getVec3(const float* pos, const int stride, const int& index)
   {
     const size_t vtxSize = (sizeof(float) * 3) + stride;
-    return reinterpret_cast<const Vec3*>(reinterpret_cast<uint8_t>(pos) + (index * vtxSize));
+    return reinterpret_cast<const Vec3*>(reinterpret_cast<const uint8_t*>(pos) + (index * vtxSize));
   }
 
 
@@ -1165,7 +1165,7 @@ namespace miniply {
       return 0;
     }
     const PLYProperty& prop = element()->properties[propIdx];
-    return prop.listData.size() / kPLYPropertySize[uint32_t(prop.type)];
+    return static_cast<uint32_t>(prop.listData.size()) / kPLYPropertySize[uint32_t(prop.type)];
   }
 
 
@@ -2201,7 +2201,7 @@ namespace miniply {
       default:
       {
           // NOTE: This is actually an error, but we should have handled everything above, except property type `None`, so we ignore it for now.
-          return;
+          return "";
       }
       }
   }
@@ -2307,6 +2307,8 @@ namespace miniply {
       auto& elementData = m_elementData[elementName];
       elementData.resize(elementData.size() + (itemSize * items));
       element->count += items;
+
+      return true;
   }
 
   bool PLYWriter::map_items(const std::string& elementName, const void* data, uint32_t numItems, uint32_t stride, const uint32_t propIdxs[], uint32_t numProps, uint32_t firstItem)
@@ -2317,7 +2319,7 @@ namespace miniply {
           return false;
 
       // Check if any elements are list elements. List elements must be mapped differently.
-      for (int p = 0; p < numProps; ++p)
+      for (uint32_t p = 0; p < numProps; ++p)
           if (element->properties[propIdxs[p]].countType != PLYPropertyType::None)
               return false;
 
@@ -2337,6 +2339,8 @@ namespace miniply {
               std::memcpy((uint8_t*)elementData + elementOffset, (uint8_t*)data + dataOffset, kPLYPropertySize[uint32_t(prop.type)]);
           }
       }
+
+      return true;
   }
   
   bool PLYWriter::map_list_items(const std::string& elementName, const uint32_t* counts, const void* data, uint32_t numItems, uint32_t propIdx, uint32_t firstItem)
@@ -2373,6 +2377,8 @@ namespace miniply {
 
       // Mark the element as non-fixed.
       element->fixedSize = false;
+
+      return true;
   }
 
   void PLYWriter::write() const
