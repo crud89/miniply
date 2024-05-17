@@ -2362,15 +2362,24 @@ namespace miniply {
       for (uint32_t i = 0; i < firstItem; i++)
           elementOffset += prop.rowCount[i] * kPLYPropertySize[uint32_t(prop.type)];
 
+      // Compute the overall required size.
+      size_t listItemSize = prop.listData.size();
+
+      for (uint32_t i = 0; i < numItems; ++i)
+          listItemSize += counts[i] * kPLYPropertySize[uint32_t(prop.type)];
+
+      // Reserve enough memory in the list data buffer.
+      prop.listData.resize(listItemSize);
+
       // Copy the counts and the actual data.
-      std::memcpy((uint32_t*)prop.rowCount.data() + firstItem, counts, numItems * sizeof(uint32_t));
+      std::memcpy(reinterpret_cast<uint8_t*>(prop.rowCount.data()) + firstItem * sizeof(uint32_t), counts, numItems * sizeof(uint32_t));
       size_t dataOffset = 0u;
 
       for (auto item = firstItem, i = 0u; i < numItems; ++i, ++item)
       {
           auto count = counts[i];
-          auto elementSize = count * kPLYPropertySize[uint32_t(prop.type)] * sizeof(uint8_t);
-          std::memcpy(prop.listData.data() + elementOffset, (uint8_t*)data + dataOffset, elementSize);
+          auto elementSize = count * kPLYPropertySize[uint32_t(prop.type)];
+          std::memcpy(prop.listData.data() + elementOffset, reinterpret_cast<const uint8_t*>(data) + dataOffset, elementSize);
           elementOffset += elementSize;
           dataOffset += elementSize;
       }
