@@ -2190,13 +2190,15 @@ namespace miniply {
       }
       case PLYPropertyType::Float:
       {
+          // NOTE: Floating point values must be normalized.
           float val = *reinterpret_cast<const float*>(buffer + offset);
-          return std::to_string(val);
+          return std::to_string(std::isnormal(val) ? val : 0.0f);
       }
       case PLYPropertyType::Double:
       {
+          // NOTE: Floating point values must be normalized.
           double val = *reinterpret_cast<const double*>(buffer + offset);
-          return std::to_string(val);
+          return std::to_string(std::isnormal(val) ? val : 0.0f);
       }
       default:
       {
