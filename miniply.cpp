@@ -2435,8 +2435,7 @@ namespace miniply {
                       if (property.countType == PLYPropertyType::None)
                       {
                           // Convert scalar property to ASCII, depending on type.
-                          auto str = convert_property_to_ascii(elementData.data(), dataOffset, property.type);
-                          m_stream << str << " "; // NOTE: This will append an unnecessary white space at the end of each property, but for the sake of parsing performance we will ignore it. 
+                          m_stream << convert_property_to_ascii(elementData.data(), dataOffset, property.type) << " "; // NOTE: This will append an unnecessary white space at the end of each property, but for the sake of parsing performance we will ignore it. 
                           dataOffset += kPLYPropertySize[uint32_t(property.type)];
                       }
                       else
@@ -2452,7 +2451,7 @@ namespace miniply {
                           
                           for (uint32_t e = 0; e < property.rowCount[i]; ++e)
                           {
-                              m_stream << convert_property_to_ascii(property.listData.data(), listDataOffset, property.type);
+                              m_stream << convert_property_to_ascii(property.listData.data(), listDataOffset, property.type) << " ";
                               listDataOffset += kPLYPropertySize[uint32_t(property.type)];
                           }
                       }
